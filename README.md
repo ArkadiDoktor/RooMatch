@@ -1,204 +1,174 @@
-RooMatch
+# RooMatch: Image Retrieval for Interior Room Re-identification
 
-Room Re-Identification via Content-Preserving Image Retrieval
+## Project Motivation
 
-Project Motivation
+There is currently no ready-to-use dataset for identifying the same physical room with different interior arrangements. RooMatch addresses this gap by providing a controlled synthetic dataset and an image retrieval system to recognize rooms despite changes in furniture, decor, or objects. The main use cases include detecting fraud on real estate websites and Airbnb listings, as well as finding the lowest price across different platforms by identifying the same room listed multiple times.
 
-Room re-identification is a challenging computer vision problem where visually different images may represent the same physical space. In real-world applications such as real estate platforms, interior design tools, and digital asset management, rooms often undergo changes in furniture, decor, or occupancy while their structural layout remains unchanged.
+## Problem Statement
 
-RooMatch is motivated by the question:
+Given a query image of a room, the goal is to retrieve all images real or synthetic that depict the same physical room. The challenge is to ignore cosmetic changes (furniture, decor, plants, clutter) while preserving structural identity. This requires models to focus on spatial and semantic cues rather than superficial appearance.
 
-Can modern vision foundation models recognize the same room despite significant appearance-level changes, without relying on explicit geometric supervision?
-
-Problem Statement
-
-Given a query image of a room, retrieve the Top-K most similar images from a database such that all retrieved images correspond to the same physical room.
-
-Key constraints:
-
-Room geometry is fixed (walls, windows, doors, camera position)
-
-Only movable interior elements may change
-
-Evaluation is performed under a strict retrieval criterion
-
-This formulation emphasizes robust spatial understanding rather than superficial visual similarity.
-
-Visual Abstract
+## Visual Abstract
 
 The RooMatch pipeline consists of:
 
-Controlled Dataset Construction
-Real room images are augmented using inpainting-based generation to create realistic variations while preserving structure.
+1. Generating 10 synthetic variants per real room image.
+2. Embedding all images using DINOv2 ViT-B/14.
+3. Constructing a nearest-neighbors index in embedding space.
+4. Evaluating retrieval using **Strict Recall@K**, where all top-K retrieved images must belong to the same room.
 
-Embedding Extraction
-Images are encoded using a vision foundation model to produce normalized embeddings.
+Visual summaries of embeddings, separability, and retrieval performance are stored in the **Visuals/** directory.
 
-Image Retrieval & Evaluation
-Nearest-neighbor search is performed in embedding space, followed by strict evaluation.
+## Datasets Used / Collected
 
-Visual summaries of experiments and results are available in the Visuals/ directory.
+### 1. Complete Dataset
 
-Datasets Used or Collected
-Intermediate Dataset (interm_dataset/)
+* **1,000 real room images** (`real/room_1.jpg` … `room_1000.jpg`)
+* **10 synthetic variants per room** (`synthetic/room_1/syn_00.png` … `syn_09.png`)
+* **Labels CSV**: `labels.csv` and `labels_fixed.csv` contain image paths and room IDs
 
-50 real room images
+Structure:
 
-10 synthetic variants per room
+```
+complete_dataset/
+ ├── real/
+ ├── synthetic/
+ │    ├── room_1/
+ │    └── room_1000/
+ ├── labels.csv
+ └── labels_fixed.csv
+```
 
-Total: 550 images
+### 2. Intermediate Dataset
 
-Used for early validation and experimentation
+* **50 real room images** (`real/room_0.jpg` … `room_49.jpg`)
+* **10 synthetic variants per room** (`synthetic/room_0/syn_00.png` … `syn_09.png`)
 
-Complete Dataset (complete_dataset/)
+Mirrors the complete dataset at smaller scale.
 
-1000 real room images
+## Data Augmentation and Generation Methods
 
-10 synthetic variants per room
+Synthetic images are generated with **Stable Diffusion inpainting**, ensuring only movable objects are changed while the room structure remains intact:
 
-Total: 11,000 images
+* Furniture, decor, people, plants, and clutter are modified.
+* Walls, windows, doors, floors, ceilings, and camera positions remain identical.
+* Each variant uses a unique combination of attributes and random masks to enhance diversity.
 
-Dataset structure:
+Ground truth labels map each image to its corresponding room ID.
+
+## Input / Output Examples
+
+**Input:** A query image of a room (real or synthetic).
+
+**Output:** Top-K images from the dataset corresponding to the same physical room.
+
+* Retrieval quality is measured using **Strict Recall@K**, counting only queries where all top-K neighbors match the same room.
+
+Example visualization: query `real/room_42.jpg` retrieves `synthetic/room_42/syn_00.png` … `syn_09.png` plus `real/room_42.jpg`.
+
+## Models and Pipelines Used
+
+1. **Base DINOv2 Embeddings**
+
+   * Model: `facebookresearch/dinov2_vitb14`
+   * Outputs normalized 768-dimensional embeddings
+
+2. **Nearest-Neighbors Index**
+
+   * sklearn `NearestNeighbors` with cosine distance
+   * Retrieves top-K images per query
+
+3. **Optional Fine-Tuning**
+
+   * DINOv2 embeddings can be fine-tuned to improve separability between rooms
+
+4. **Visualization Pipelines**
+
+   * Strict Recall@K plots
+   * Embedding separability analysis
+   * Random query retrieval visualization
+
+## Training Process and Parameters
+
+* Embeddings are **frozen** (no training) for standard evaluation
+* Fine-tuning (optional) uses the same embedding model with cosine similarity optimization
+* Retrieval evaluation uses a nearest-neighbors index with k up to 10
+
+## Metrics
+
+* **Strict Recall@K**: Fraction of queries for which all top-K retrieved images belong to the same room
+* Evaluated for K=1 to 10
+* Embedding separability visualized via dimensionality reduction and clustering plots
+
+## Results
+
+Results are provided as CSVs under the `Results/` directory:
+
+* `Base-Model_results.csv`
+* `Embedding-Separability_results.csv`
+* `Fine-Tuned-Model_results.csv`
+* `Interm_results.csv`
+
+Observations:
+
+* DINOv2 embeddings alone achieve high retrieval performance.
+* Fine-tuning slightly improves top-K strict recall.
+* Embedding separability visualization demonstrates clustering by room.
+
+Visual comparisons are stored in `Visuals/`:
+
+* `Base-Model_visuals.png`
+* `Embedding-Separability_visuals.png`
+* `Fine-Tuned-Model_visuals.png`
+* `Interm_visuals.png`
+
+## Repository Structure
+
+```
+Code/
+ ├── Complete_code/
+ │    ├── Generation_notebook.ipynb
+ │    └── Evaluation_notebook.ipynb
+ └── Interm_code/
+      ├── Room_generation.ipynb
+      └── Room_evaluation.ipynb
 
 complete_dataset/
-├── real/                # room_1.jpg ... room_1000.jpg
-├── synthetic/
-│   ├── room_1/
-│   │   ├── syn_00.png ... syn_09.png
-│   └── ...
-├── labels.csv
-└── labels_fixed.csv
+ ├── real/
+ ├── synthetic/
+ ├── labels.csv
+ └── labels_fixed.csv
 
+interm_dataset/
+ ├── real/
+ ├── synthetic/
+ └── labels.csv
 
-Each image is associated with a room_id used for retrieval evaluation.
+Results/
+ ├── Base-Model_results.csv
+ ├── Embedding-Separability_results.csv
+ ├── Fine-Tuned-Model_results.csv
+ └── Interm_results.csv
 
-Data Augmentation and Generation Methods
+Slides/
+ ├── Proposal_slides/
+ ├── Interm_slides/
+ └── Final_slides/
 
-Synthetic images are generated using Stable Diffusion Inpainting, with carefully designed prompts to ensure:
+Visuals/
+ ├── Base-Model_visuals.png
+ ├── Embedding-Separability_visuals.png
+ ├── Fine-Tuned-Model_visuals.png
+ └── Interm_visuals.png
+```
 
-Identical room geometry
+## Team Members
 
-No addition or removal of structural elements
+* *[Arkadi Doktorovich]*
+* *[Elia Meerson]*
+* *[Shai Gigi]*
 
-Only movable objects are modified
+---
 
-Augmented attributes include:
+This repository accompanies the RooMatch project on image retrieval for interior room and is intended for research and educational purposes.
 
-Furniture
-
-Decor
-
-Plants
-
-People
-
-Clutter
-
-Material appearance
-
-A strong negative prompt prevents architectural or camera changes.
-
-Input / Output Examples
-
-Input:
-A single image of a room (real or synthetic)
-
-Output:
-Top-K retrieved images ranked by cosine similarity in embedding space
-
-Goal:
-All retrieved images must share the same room_id as the query image.
-
-Models and Pipelines Used
-Feature Extraction
-
-Model: DINOv2 ViT-B/14
-
-Pretrained vision foundation model
-
-Used as a frozen embedding extractor
-
-Retrieval
-
-Embeddings are L2-normalized
-
-Similarity computed using cosine distance
-
-Nearest neighbors retrieved via sklearn
-
-Training Process and Parameters
-
-No supervised fine-tuning is required for the base model
-
-All experiments focus on embedding quality and retrieval behavior
-
-Image preprocessing:
-
-Resize to 224×224
-
-Center crop
-
-ImageNet normalization
-
-Metrics
-Strict Recall@K (Primary Metric)
-
-A retrieval is considered correct only if all Top-K results belong to the same room.
-
-\text{Strict Recall@K} = \frac{\text{# queries where all Top-K match room\_id}}{\text{total # queries}}
-
-This metric enforces a highly conservative and application-relevant success criterion.
-
-Results
-
-Quantitative results are provided in the Results/ directory:
-
-Base-Model_results.csv
-
-Embedding-Seprability_results.csv
-
-Fine-Tuned-Model_results.csv
-
-Interm_results.csv
-
-Visual performance summaries are available in the Visuals/ directory.
-
-Repository Structure
-├── Code/
-│   ├── Complete_code/
-│   │   ├── Generation_notebook.ipynb
-│   │   └── Evaluation_notebook.ipynb
-│   └── Interm_code/
-│       ├── Room_generation.ipynb
-│       └── Room_evaluation.ipynb
-│
-├── Results/
-│   ├── Base-Model_results.csv
-│   ├── Embedding-Seprability_results.csv
-│   ├── Fine-Tuned-Model_results.csv
-│   └── Interm_results.csv
-│
-├── Slides/
-│   ├── Final_slides/
-│   │   ├── RooMatch-Final.pdf
-│   │   └── RooMatch-Final.pptx
-│   ├── Interm_slides/
-│   │   ├── RooMatch.pdf
-│   │   └── RooMatch.pptx
-│   └── Proposal_slides/
-│       ├── AI-Interior-Design-Proposal.pdf
-│       └── AI-Interior-Design-Proposal.pptx
-│
-├── Visuals/
-│   ├── Base-Model_visuals.png
-│   ├── Embedding-Seprability_visuals.png
-│   ├── Fine-Tuned-Model_visuals.png
-│   └── Interm_visuals.png
-│
-├── complete_dataset/
-├── interm_dataset/
-└── README.md
-
-Team Members
-
-[Your Name]
