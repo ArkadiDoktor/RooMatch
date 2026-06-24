@@ -161,14 +161,3 @@ Visuals/
  ├── Fine-Tuned-Model_visuals.png
  └── Interm_visuals.png
 ```
-
-## Team Members
-
-* *[Arkadi Doktorovich]*
-* *[Elia Meerson]*
-* *[Shai Gigi]*
-
----
-
-This repository accompanies the RooMatch project on image retrieval for interior room and is intended for research and educational purposes.
-
